@@ -1,101 +1,71 @@
 const express = require('express');
 const fs = require('fs');
-const path = require('path');
+const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middleware to parse request body
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+app.use(express.static('public'));
 
-app.use(express.static("public"));
+const dbPath = __dirname + '/db/db.json';
 
-// Routes
-app.get('/notes', (req, res) => {
-  res.sendFile(path.join(__dirname, './public/notes.html'));
-});
+const readNotesFromDb = () => {
+  try {
+    const data = fs.readFileSync(dbPath, 'utf8');
+    return JSON.parse(data);
+  } catch (err) {
+    console.error('Error reading db.json:', err);
+    return [];
+  }
+};
 
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, './public/index.html'));
-});
+const saveNotesToDb = (notes) => {
+  try {
+    fs.writeFileSync(dbPath, JSON.stringify(notes));
+  } catch (err) {
+    console.error('Error writing to db.json:', err);
+  }
+};
 
-// API routes
+// API Routes
 app.get('/api/notes', (req, res) => {
-  fs.readFile('./db/db.json', 'utf8', (err, data) => {
-    if (err) {
-      console.error("Error reading data:", err);
-      return res.status(500).json({ error: 'Error reading data.' });
-    }
-
-    try {
-      const notes = JSON.parse(data);
-      res.json(notes);
-    } catch (parseErr) {
-      console.error("Error parsing data:", parseErr);
-      return res.status(500).json({ error: 'Error parsing data.' });
-    }
-  });
+  const notes = readNotesFromDb();
+  res.json(notes);
 });
 
 app.post('/api/notes', (req, res) => {
-  fs.readFile('./db/db.json', 'utf8', (err, data) => {
-    if (err) {
-      console.error("Error reading data:", err);
-      return res.status(500).json({ error: 'Error reading data.' });
-    }
+  const newNote = req.body;
+  newNote.id = uuidv4();
 
-    try {
-      const notes = JSON.parse(data);
-      const newNote = req.body;
-      newNote.id = Date.now(); 
+  const notes = readNotesFromDb();
+  notes.push(newNote);
+  saveNotesToDb(notes);
 
-      notes.push(newNote);
-
-      fs.writeFile('./db/db.json', JSON.stringify(notes), (writeErr) => {
-        if (writeErr) {
-          console.error("Error writing data:", writeErr);
-          return res.status(500).json({ error: 'Error writing data.' });
-        }
-
-        res.json(newNote);
-      });
-    } catch (parseErr) {
-      console.error("Error parsing data:", parseErr);
-      return res.status(500).json({ error: 'Error parsing data.' });
-    }
-  });
+  res.json(newNote);
 });
 
 app.delete('/api/notes/:id', (req, res) => {
-    const noteId = parseInt(req.params.id);
-  
-    fs.readFile('./db/db.json', 'utf8', (err, data) => {
-      if (err) {
-        console.error("Error reading data:", err);
-        return res.status(500).json({ error: 'Error reading data.' });
-      }
+  const { id } = req.params;
 
-      try {
-        const notes = JSON.parse(data);
-        const updatedNotes = notes.filter((note) => note.id !== noteId);
-  
-        fs.writeFile('./db/db.json', JSON.stringify(updatedNotes), (writeErr) => {
-          if (writeErr) {
-            console.error("Error writing data:", writeErr);
-            return res.status(500).json({ error: 'Error writing data.' });
-          }
+  let notes = readNotesFromDb();
+  notes = notes.filter((note) => note.id !== id);
+  saveNotesToDb(notes);
 
-          res.json({ message: 'Note deleted successfully.' });
-        });
-      } catch (parseErr) {
-        console.error("Error parsing data:", parseErr);
-        return res.status(500).json({ error: 'Error parsing data.' });
-      }
-    });
-  });
+  res.sendStatus(200);
+});
+
+// HTML Routes
+app.get('/notes', (req, res) => {
+  res.sendFile(__dirname + '/public/notes.html');
+});
+
+app.get('*', (req, res) => {
+  res.sendFile(__dirname + '/public/index.html');
+});
 
 // Start the server
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server is running on http://localhost:${PORT}`);
 });
