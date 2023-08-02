@@ -40,7 +40,7 @@ app.post('/api/notes', (req, res) => {
 
     const notes = JSON.parse(data);
     const newNote = req.body;
-    newNote.id = Date.now(); // Add a unique id to the new note (using timestamp)
+    newNote.id = Date.now(); 
 
     notes.push(newNote);
 
@@ -54,6 +54,30 @@ app.post('/api/notes', (req, res) => {
     });
   });
 });
+
+app.delete('/api/notes/:id', (req, res) => {
+    const noteId = parseInt(req.params.id);
+  
+    fs.readFile('db.json', 'utf8', (err, data) => {
+      if (err) {
+        console.log(err);
+        return res.status(500).json({ error: 'Error reading data.' });
+      }
+  
+      const notes = JSON.parse(data);
+      const updatedNotes = notes.filter((note) => note.id !== noteId);
+  
+      fs.writeFile('db.json', JSON.stringify(updatedNotes), (err) => {
+        if (err) {
+          console.log(err);
+          return res.status(500).json({ error: 'Error writing data.' });
+        }
+  
+        res.json({ message: 'Note deleted successfully.' });
+      });
+    });
+  });
+
 
 // Start the server
 app.listen(PORT, () => {
